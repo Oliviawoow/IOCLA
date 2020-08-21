@@ -1,0 +1,73 @@
+Copyright Oprea Olivia Maria-Magdalena 323CA
+
+1. Analiza Binarului
+Am folosit comanda "objdump -M intel -d nice" pentru a dezasambla executabilul.
+Dupa ce m.am uitat pe cod am observat ca functia vulnerabila, care are probleme,
+se afla la adresa 0x080485b1, adica functia <print_flag>. Mai exact la adresa
+0x08048664 se apeleaza eax, dar deoarece noi citim mai mult decat spatiul alocat
+(buffer overflow) in locul unde ar trebuii sa fie valoarea corecta a lui eax se
+afla un caracter oarecare care a fost citit.
+
+2. Spargerea binarului
+Asa cum am spus mai sus, noi am citit mult mai multe caractere, iar spatiul
+este mult mai mic.
+Pentru a rezolva problema si pentru ca functia sa functioneze cum trebuie este
+necesar ca operatia de la adresa 0x08048664 sa fie efectuata cu succes.
+Pentru acest lucru am calculat de la inceputu functiei <print_flag> cate
+caractere se citesc si se pun pe stiva. Pentru asta am transformat din hexa in
+decimal. La prima apelare vom avea 290 de caractere stocate pe stiva, apoi
+112 caractere, 233 caractere, pana ajungem la apelarea functiei buclucase.
+Aici vom citii 498 de caractere, acesta fiind spatiul maxim care ni se da, dar
+mai putem adauga 8 caractere, adica sa scriem peste old ebp si peste return,
+deoarece la finalul apelului nu vom mai avea nevoie de ele.
+Astfel vom avea 290 + 112 + 233 + 498 + 8 caractere. Dupa toate acestea vom
+scrie adresa functiei in little endian, adica \xb1\x85\x04\x08 pentru a face
+apelul corect al functiei si pentru a primii flagul NICE_FLAG.
+Caracterele din fisierul nice_payload au fost luate aleatoriu pana la
+indeplinirea numarului de caractere.
+NICE_FLAG{186d2e799a678824991fd1ea13385bd4}
+
+3. Spargerea binarului v2
+Am folosit comanda "objdump -M intel -d naughty" pentru a dezasambla executabilul.
+Dupa ce m.am uitat pe cod am observat ca functia vulnerabila, care are probleme,
+se afla la adresa 0x080485b1, adica functia <print_flag>. Mai exact la adresa
+0x080486c7 unde se compara o valoare de la o anumita adresa, dar deoarece noi
+citim mai mult decat spatiul alocat (buffer overflow) in locul unde ar trebuii 
+sa fie valoarea corecta a acelei adrese se afla un caracter oarecare care a fost
+citit, deci compararea nu are loc cu succes.
+Pentru a rezolva problema si pentru ca functia sa functioneze cum trebuie este
+necesar ca comparararea de la adresa 0x080486c7 sa fie efectuata cu succes, dar
+si celelalte comparari dinaintea sa.
+Pentru acest lucru am calculat de la inceputu functiei <print_flag> cate
+caractere se citesc si se pun pe stiva. Pentru asta am transformat din hexa in
+decimal. Apoi am calculat la ce adresa se face comparatia. Dupa aceea am calculat
+cate caractere putem scrie pana la acea adresa, dupa am scris adresa cu care se 
+compara, iar mai apoi am scris restul de caractere. La prima apelare vom avea 66
+de caractere scrise, apoi adresa de comparare \x10\x90\xb8\x42, iar apoi inca 232
+caractere. La a doua apelare avem 83 de caractere, apoi \x2c\x81\x18\x03 si apoi 
+inca 45 de caractere. La a treia apelare avem 62 de caractere, apoi \x75\x95\
+x55\xfa si apoi inca 176 de caractere. La penultima apelare inainte de eroare vom
+avea 14 caractere, apoi \x4c\x28\x6b\x24 si dupa 159 caractere. La ultima apelare
+vom avea 390 de caractere, apoi \xdb\xd8\x20\xe6, apoi restul de 70 de caractere
+si mai adaugam 12 caractere (aceeasi poveste putem scrie peste old ebp si retrun 
+deoarece nu vom mai avea nevoie de ele), iar apoi adaugam adresa \xb1\x85\x04\x08.
+Toate adresele sunt scris in little endian si dupa ce am pus destule caractere
+aleatorii in fisierul naughty_payload si adresele primim NAUGHTY_FLAG.
+NAUGHTY_FLAG{582924d969a61e67bc0c63494eec7110}
+
+4. Bonus - Shellcode
+Am folosit gdb naughty pentru acest exercitiu.
+Pana la apelarea functiei vulnerabile am copiat din naughty_payload caracterele
+si adresele corespunzatoare. Apoi pentru ultima apelare am pus 390 de caractere
+de tip \x90 (aceasta instructiune sare la urmatoarea instructiune), apoi am pus
+adresa \xdb\xd8\x20\xe6 si dupa am adaugat inca 82 de caractere (incluzand 
+suprascrierea lui old ebp si return deoarece nu vom mai avea nevoie de ele), 
+iar in acele caractere avem \x90 si un cod de assambly pe care l.am compilat 
+si i-am dat objdump si mi.a dat reprezentarea in hexa a instructiunilor
+respective care imi deschid un bash (x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f
+\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80). Apoi am pus un pointer
+care arata la ultimul vector declarat pe stiva pentru a aduce eip in acele
+instructiuni de no-operation. De acolo eip ia comenzi pana ajunge la codul de mai
+sus unde declanseaza o intrerupere de sistem si apeleaza bianrul /bin/dash care
+imi deschide un alt shell.
+Procesul s.a incheiat cu: "process 4400 is executing new program: /bin/dash".
